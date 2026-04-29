@@ -75,13 +75,11 @@
             <a href="{{ product.url }}" class="best-sellers__image-link">
               {% if product.featured_image %}
               <picture>
-                <!-- mobile -->
                 <source media="(max-width: 768px)" srcset="
                           {{ product.featured_image | image_url: width: 400 }} 1x,
                           {{ product.featured_image | image_url: width: 800 }} 2x
                         ">
 
-                <!-- desktop -->
                 <source media="(min-width: 769px)" srcset="
                           {{ product.featured_image | image_url: width: 600 }} 1x,
                           {{ product.featured_image | image_url: width: 1200 }} 2x
@@ -631,6 +629,41 @@
     overlay.addEventListener('click', closeModal);
     closeButton.addEventListener('click', closeModal);
 
+    async function updateCartCount() {
+      const response = await fetch('/cart.js', {
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) return;
+
+      const cart = await response.json();
+      const count = cart.item_count;
+
+      const countElements = document.querySelectorAll(
+        '.cart-bubble__text-count, [data-testid="cart-bubble"], [ref="cartBubbleCount"]'
+      );
+
+      countElements.forEach((element) => {
+        element.textContent = count;
+      });
+
+      const cartBubbles = document.querySelectorAll('.cart-bubble');
+
+      cartBubbles.forEach((bubble) => {
+        bubble.style.display = count > 0 ? '' : 'none';
+      });
+
+      document.dispatchEvent(
+        new CustomEvent('cart:refresh', {
+          detail: {
+            cart
+          },
+        })
+      );
+    }
+
     cartButtons.forEach((button) => {
       button.addEventListener('click', async () => {
         const variantId = button.dataset.variantId;
@@ -640,7 +673,7 @@
         button.disabled = true;
 
         try {
-          await fetch('/cart/add.js', {
+          const response = await fetch('/cart/add.js', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -651,6 +684,12 @@
               quantity: 1,
             }),
           });
+
+          if (!response.ok) {
+            throw new Error('Product was not added to cart');
+          }
+
+          await updateCartCount();
         } catch (error) {
           console.error('Add to cart error:', error);
         } finally {
